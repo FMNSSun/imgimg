@@ -272,14 +272,8 @@ def f_to_gray(args):
 def main(func, args):
 	funcs = {
 		"version" : f_version,
-		"rhist" : f_rhist,
-		"ghist" : f_ghist,
-		"bhist" : f_bhist,
-		"ahist" : f_ahist,
 		"dhist" : f_dhist,
 		"hist"  : f_hist,
-		"maxhist" : f_maxhist,
-		"minhist" : f_minhist,
 		"to_gray" : f_to_gray,
 		"hist3d" : f_hist3d,
 	}
@@ -303,7 +297,7 @@ def usage():
 	print "   pixrsh  right shift each pixel by a value"
 	print "   to_gray convert to grayscale"
 	print "   to_rgb  convert three grayscale images to an rgb image"
-   print "           first image is r, second image is b, third image is g"
+	print "           first image is r, second image is b, third image is g"
 	print " .[ Methods ]. <args:method>"
 	print "   rgb     average of r,g,b"
 	print "   rg      average of r,g"
