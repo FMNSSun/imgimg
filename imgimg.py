@@ -43,7 +43,7 @@ def open_rgb(path):
 def calc_hist(im, method):
 	(w,h) = im.size
 
-	hist = [0]*256
+	hist = [0]*(get_l_max(method)+1)
 
 	y = 0
 	while y < h:
@@ -52,10 +52,51 @@ def calc_hist(im, method):
 			(r,g,b) = im.getpixel((x,y))
 			l = get_l((r,g,b), method)
 
-			if method == "d":
-				l = int((l / 441.0)*255.0)
-
 			hist[l] += 1
+
+			x += 1
+		y += 1
+
+	return hist
+
+def calc_histbs(im, method, bs = 1):
+	(w,h) = im.size
+
+	l_max = get_l_max(method)
+	hist = [0]*(l_max+1)
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			lsum = 0
+			n = 0
+			ref_pixel = im.getpixel((x,y))
+			(ref_r, ref_g, ref_b) = ref_pixel
+
+			dy = -bs
+			while dy <= bs:
+				dx = -bs
+				while dx <= bs:
+					if dy == 0 and dx == 0: dx += 1; continue
+					if x+dx < 0 or x+dx >= w: dx += 1; continue
+					if y+dy < 0 or y+dy >= h: dx += 1; continue
+
+					n += 1
+
+					(r,g,b) = im.getpixel((x+dx,y+dy))
+					l = get_l((ref_r-r,ref_g-g,ref_b-b), method)
+
+					if l < 0: l = 0
+					if l > l_max: l = l_max
+		
+					lsum += l
+
+					dx += 1
+				dy += 1
+
+			lsum /= n
+			hist[lsum] += 1
 
 			x += 1
 		y += 1
@@ -112,7 +153,33 @@ def f_hist(args):
 	the_hist = calc_hist(im, method)
 	m = float(max(the_hist))
 
-	hist = Image.new("RGB", (512, 100))
+	hist = Image.new("RGB", (len(the_hist)*2, 100))
+	drw = ImageDraw.Draw(hist)
+
+	x = 0
+	while x < len(the_hist):
+		freq = the_hist[x]/m
+		clr = (128, 128, 128)
+		if args[2] == 'yes':
+			clr = to_clr(freq)
+		drw.rectangle([(x*2, 100-(freq*100)),(x*2+2, 100)], fill=clr)
+		x += 1
+
+	hist.save(args[1], 'PNG')
+
+	return 0
+
+def f_histbs(args):
+	if len(args) != 4:
+		print "Correct args: <path> <output> <heat> <method>"
+		return -1
+
+	im = open_rgb(args[0])
+	method = args[3]
+	the_hist = calc_histbs(im, method)
+	m = float(max(the_hist))
+
+	hist = Image.new("RGB", (len(the_hist)*2, 100))
 	drw = ImageDraw.Draw(hist)
 
 	x = 0
@@ -153,6 +220,11 @@ def f_dhist(args):
 
 	return 0
 
+def get_l_max(method):
+	if method == "d":
+		return 441
+	return 255
+
 def get_l(rgb, method):
 	l = 0
 	(r,g,b) = rgb
@@ -173,7 +245,7 @@ def get_l(rgb, method):
 		l = b
 	elif method == "d":
 		d = int(math.sqrt(r*r + g*g + b*b))
-		l = int(d/441.0 * 255.0)
+		l = d
 	elif method == "max":
 		l = max(r,max(g,b))
 	elif method == "min":
@@ -209,10 +281,16 @@ def get_l(rgb, method):
 		l = int((g/b)*255.0)
 	elif method == "r+g+b":
 		l = int(r+g+b)
+	elif method == "rd":
+		l = int(abs(r))
+	elif method == "gd":
+		l = int(abs(g))
+	elif method == "bd":
+		l = int(abs(b))
 
 	return l
 
-def f_hist3d(args):
+def f_hist2d(args):
 	if len(args) != 3:
 		print "Correct args: <path> <output> <method>"
 		return -1
@@ -236,6 +314,94 @@ def f_hist3d(args):
 			p = int(p * 255.0)
 
 			out.putpixel((x,y), (p,p,p))
+
+			x += 1
+		y += 1
+
+	out.save(args[1], 'PNG')
+
+def f_hist2dbs(args, bs = 1):
+	if len(args) != 3:
+		print "Correct args: <path> <output> <method>"
+		return -1
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+	method = args[2]
+
+	hist = calc_histbs(im, method)
+	mx = float(max(hist))
+	print mx
+	l_max = get_l_max(method)
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			lsum = 0
+			n = 0
+			ref_pixel = im.getpixel((x,y))
+			(ref_r, ref_g, ref_b) = ref_pixel
+
+			dy = -bs
+			while dy <= bs:
+				dx = -bs
+				while dx <= bs:
+					if dy == 0 and dx == 0: dx += 1; continue
+					if x+dx < 0 or x+dx >= w: dx += 1; continue
+					if y+dy < 0 or y+dy >= h: dx += 1; continue
+
+					n += 1
+
+					(r,g,b) = im.getpixel((x+dx,y+dy))
+					l = get_l((ref_r-r,ref_g-g,ref_b-b), method)
+
+					if l < 0: l = 0
+					if l > l_max: l = l_max
+		
+					lsum += l
+
+					dx += 1
+				dy += 1
+
+			lsum /= n
+
+			p = hist[lsum]/mx
+			p = int(p * 255.0)
+
+			out.putpixel((x,y), (p,p,p))
+
+			x += 1
+		y += 1
+
+	out.save(args[1], 'PNG')
+
+def f_trshldl(args):
+	if len(args) != 4:
+		print "Correct args: <path> <output> <method> <threshold>"
+
+	threshold = float(args[3])
+	method = args[2]
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+
+			l = 0
+
+			l = get_l((r,g,b), method)
+
+			if l < threshold:
+				out.putpixel((x,y),(l,l,l))
+			else:
+				out.putpixel((x,y),(255,255,255))
 
 			x += 1
 		y += 1
@@ -274,8 +440,11 @@ def main(func, args):
 		"version" : f_version,
 		"dhist" : f_dhist,
 		"hist"  : f_hist,
+		"histbs" : f_histbs,
 		"to_gray" : f_to_gray,
-		"hist3d" : f_hist3d,
+		"hist2d" : f_hist2d,
+		"hst2dbs" : f_hist2dbs,
+		"trshldl" : f_trshldl,
 	}
 
 	return (funcs[func])(args)
@@ -286,6 +455,8 @@ def usage():
 	print "   version print the version"
 	print "   dhist   generate histogram of sqrt(r*r + g*g + b*b)"
 	print "   hist    generate histogram"
+	print "   histbs  generate histogram"
+	print "   hist2d  generate a pseudo-3d histogram (projected onto a 2d surface)"
 	print "   heatmap convert image to heatmap"
 	print "   pixeq   compare images pixel by pixel removing all pixels that do not match"
 	print "   pixdiff diff images pixel by pixel abs(p1 - p2)"
@@ -298,6 +469,7 @@ def usage():
 	print "   to_gray convert to grayscale"
 	print "   to_rgb  convert three grayscale images to an rgb image"
 	print "           first image is r, second image is b, third image is g"
+	print "   trshldl only keep pixels that are below a certain threshold"
 	print " .[ Methods ]. <args:method>"
 	print "   rgb     average of r,g,b"
 	print "   rg      average of r,g"
@@ -307,6 +479,9 @@ def usage():
 	print "   min     minimum of r,g,b"
 	print "   minmax  average of maximum of r,g,b and minimum of r,g,b"
 	print "   d       use sqrt(r*r + g*g + b*b)"
+	print "   rd      use abs(r)"
+	print "   gd      use abs(g)"
+	print "   bd      use abs(b)"
 	print "   r       r only"
 	print "   g       g only"
 	print "   b       b only"
