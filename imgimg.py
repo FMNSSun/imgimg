@@ -40,6 +40,31 @@ def to_clr(f):
 def open_rgb(path):
 	return Image.open(path).convert('RGB')
 
+def calc_avg(im):
+	(w,h) = im.size
+
+	rs = 0
+	gs = 0
+	bs = 0
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+			rs += r
+			gs += g
+			bs += b			
+
+			x += 1
+		y += 1
+
+	rs /= float(w*h)
+	gs /= float(w*h)
+	bs /= float(w*h)
+
+	return (int(rs), int(gs), int(bs))
+
 def calc_hist(im, method):
 	(w,h) = im.size
 
@@ -321,16 +346,19 @@ def f_hist2d(args):
 	out.save(args[1], 'PNG')
 
 def f_hist2dbs(args, bs = 1):
-	if len(args) != 3:
-		print "Correct args: <path> <output> <method>"
+	if len(args) != 3 and len(args) != 4:
+		print "Correct args: <path> <output> <method> <radius>"
 		return -1
+
+	if len(args) == 4:
+		bs = int(args[3])
 
 	im = open_rgb(args[0])
 	(w,h) = im.size
 	out = Image.new("RGB", (w,h))
 	method = args[2]
 
-	hist = calc_histbs(im, method)
+	hist = calc_histbs(im, method, bs)
 	mx = float(max(hist))
 	print mx
 	l_max = get_l_max(method)
@@ -435,6 +463,160 @@ def f_to_gray(args):
 
 	out.save(args[1], 'PNG')
 
+def f_remavg(args):
+	if len(args) != 3:
+		print "Correct args: <path> <output> <abs>"
+		return -1
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+
+	avgclr = calc_avg(im)
+
+	(ra,ga,ba) = avgclr
+
+	print 'avgclr',ra,ga,ba
+
+	min_rd = 255
+	max_rd = -255
+	min_gd = 255
+	max_gd = -255
+	min_bd = 255
+	max_bd = -255
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+
+			rd = r - ra
+			gd = g - ga
+			bd = b - ba
+
+			if args[2] == 'yes':
+				rd = abs(rd)
+				gd = abs(gd)
+				bd = abs(bd)
+			
+			min_rd = min(min_rd, rd)
+			max_rd = max(max_rd, rd)
+			min_gd = min(min_gd, gd)
+			max_gd = max(max_gd, gd)
+			min_bd = min(min_bd, bd)
+			max_bd = max(max_bd, bd)
+
+			x += 1
+		y += 1
+
+	print max_rd, min_rd, max_gd, min_gd, max_bd, min_bd
+
+	rrng = float(max_rd - min_rd)
+	grng = float(max_gd - min_gd)
+	brng = float(max_bd - min_bd)
+
+	print rrng, grng, brng
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+
+			rd = r - ra
+			gd = g - ga
+			bd = b - ba
+
+			if args[2] == 'yes':
+				rd = abs(rd)
+				gd = abs(gd)
+				bd = abs(bd)
+			
+			rd -= min_rd
+			gd -= min_gd
+			bd -= min_bd
+
+			rp = rd / rrng
+			gp = gd / grng
+			bp = bd / brng
+
+			rc = int(rp * 255.0)
+			gc = int(gp * 255.0)
+			bc = int(bp * 255.0)
+
+			out.putpixel((x,y),(rc,gc,bc))
+
+			x += 1
+		y += 1
+	
+	out.save(args[1], 'PNG')
+
+def median(xs):
+	xs = sorted(xs)
+	ln = len(xs)
+
+	if ln == 1:
+		return int(xs[0])
+
+	if ln % 2 == 0:
+		ai = ln/2
+		bi = ai-1
+
+		return int((ai+bi)/2)
+
+	return int(xs[ln/2])
+
+def f_fmed(args, rad = 1):
+	if len(args) != 2 and len(args) != 3:
+		print "Correct usage: <path> <output> [<radius>]"
+		return -1
+
+	if len(args) == 3:
+		rad = int(args[2])
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			N = 0
+			rs = []
+			gs = []
+			bs = []
+			dy = -rad
+			while dy <= rad:
+				dx = -rad
+				while dx <= rad:
+					if x+dx < 0 or x+dx >= w: dx+=1; continue
+					if y+dy < 0 or y+dy >= h: dx+=1; continue
+
+					N += 1
+	
+					(r,g,b) = im.getpixel((x+dx,y+dy))
+					rs.append(r)
+					gs.append(g)
+					bs.append(b)
+							
+
+					dx += 1
+				dy += 1
+
+			rmed = median(rs)
+			gmed = median(gs)
+			bmed = median(bs)
+
+			out.putpixel((x,y),(rmed,gmed,bmed))
+
+			x += 1
+		y += 1
+
+	out.save(args[1], 'PNG')
+	return out
+
 def main(func, args):
 	funcs = {
 		"version" : f_version,
@@ -445,6 +627,8 @@ def main(func, args):
 		"hist2d" : f_hist2d,
 		"hst2dbs" : f_hist2dbs,
 		"trshldl" : f_trshldl,
+		"remavg" : f_remavg,
+		"fmed" : f_fmed,
 	}
 
 	return (funcs[func])(args)
@@ -470,6 +654,8 @@ def usage():
 	print "   to_rgb  convert three grayscale images to an rgb image"
 	print "           first image is r, second image is b, third image is g"
 	print "   trshldl only keep pixels that are below a certain threshold"
+	print "   remavg  remove average, scale to 0..255"
+	print "   fmed    median filter"
 	print " .[ Methods ]. <args:method>"
 	print "   rgb     average of r,g,b"
 	print "   rg      average of r,g"
