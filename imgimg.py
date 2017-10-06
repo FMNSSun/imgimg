@@ -324,16 +324,18 @@ def get_l(rgb, method):
 	return l
 
 def f_hist2d(args):
-	if len(args) != 3:
-		print "Correct args: <path> <output> <method>"
+	if len(args) != 4:
+		print "Correct args: <path> <output> <method> <scale_method>"
 		return -1
 
 	im = open_rgb(args[0])
 	(w,h) = im.size
 	out = Image.new("RGB", (w,h))
+	scale_method = args[3]
 	method = args[2]
 
 	hist = calc_hist(im, method)
+	hist = map(lambda a: scale(a, scale_method), hist)
 	mx = float(max(hist))
 
 	y = 0
@@ -342,7 +344,8 @@ def f_hist2d(args):
 		while x < w:
 			(r,g,b) = im.getpixel((x,y))
 			l = get_l((r,g,b), method)
-			
+			l = scale(l, scale_method)			
+
 			p = hist[l]/mx
 			p = int(p * 255.0)
 
@@ -375,11 +378,12 @@ def f_hist2dbs(args, bs = 1, scale_method = 'id'):
 	hist = calc_histbs(im, method, bs)
 
 	hist = map(lambda a: scale(a, scale_method), hist)
-
+	print hist
 	mx = float(max(hist))
 	print mx
 	l_max = get_l_max(method)
-
+	ps = {}
+	lsums = {}
 	y = 0
 	while y < h:
 		x = 0
@@ -401,6 +405,7 @@ def f_hist2dbs(args, bs = 1, scale_method = 'id'):
 
 					(r,g,b) = im.getpixel((x+dx,y+dy))
 					l = get_l((ref_r-r,ref_g-g,ref_b-b), method)
+					#l = scale(l, scale_method)
 
 					if l < 0: l = 0
 					if l > l_max: l = l_max
@@ -411,15 +416,19 @@ def f_hist2dbs(args, bs = 1, scale_method = 'id'):
 				dy += 1
 
 			lsum /= n
-
+			lsum = int(lsum)
 			p = hist[lsum]/mx
+			#print lsum, p, mx, hist[lsum]
+			#raw_input()
 			p = int(p * 255.0)
-
+			if not p in ps: ps[p] = True
+			if not hist[lsum] in lsums: lsums[hist[lsum]] = True
 			out.putpixel((x,y), (p,p,p))
 
 			x += 1
 		y += 1
-
+	print ps
+	print lsums
 	out.save(args[1], 'PNG')
 
 def f_trshldl(args):
@@ -585,13 +594,45 @@ def median(xs):
 	return int(xs[ln/2])
 
 def f_heatmap(args):
-	if len(args) != 3:
-		print "Correct usage: <path> <output> <invert>"
+	if len(args) != 4:
+		print "Correct usage: <path> <output> <invert> <rescale>"
 		return -1
+
+	if args[3] == 'yes':
+		rescale = True
+	else:
+		rescale = False
+
+	if args[2] == 'yes':
+		invert = True
+	else:
+		invert = False
 
 	im = open_rgb(args[0])
 	(w,h) = im.size
 	out = Image.new("RGB", (w,h))
+
+	mi = 255
+	mx = 0
+
+	if rescale:
+		y = 0
+		while y < h:
+			x = 0
+			while x < w:
+				(r,g,b) = im.getpixel((x,y))
+				l = int((r+g+b)/3)
+
+				if invert: l = 255-l
+
+				mi = min(mi, l)
+				mx = max(mx, l)
+
+				x += 1
+			y += 1
+	else:
+		mi = 0
+		mx = 255
 
 	y = 0
 	while y < h:
@@ -600,10 +641,10 @@ def f_heatmap(args):
 			(r,g,b) = im.getpixel((x,y))
 			l = int((r+g+b)/3)
 
-			p = l/255.0
-
-			if args[2] == 'yes':
-				p = 1.0-p
+			if invert:
+				l = 255 - l
+		
+			p = (l-mi)/float(mx-mi)
 
 			clr = to_clr(p)
 
@@ -684,6 +725,10 @@ def main(func, args):
 def scale(p, scale_method):
 	if scale_method == 'log10':
 		return math.log(p+1, 10)
+	elif scale_method == 'log3':
+		return math.log(p+1, 3)
+	elif scale_method == 'log5':
+		return math.log(p+1, 5)
 	elif scale_method == 'sqrt':
 		return math.sqrt(p)
 	elif scale_method == 'id':
