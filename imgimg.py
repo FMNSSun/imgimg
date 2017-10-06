@@ -84,8 +84,9 @@ def calc_hist(im, method):
 
 	return hist
 
-def calc_histbs(im, method, bs = 1):
+def calc_histbs(im, method, rad = 1):
 	(w,h) = im.size
+	bs = rad
 
 	l_max = get_l_max(method)
 	hist = [0]*(l_max+1)
@@ -169,13 +170,15 @@ def f_version(args):
 	return 0
 
 def f_hist(args):
-	if len(args) != 4:
-		print "Correct args: <path> <output> <heat> <method>"
+	if len(args) != 5:
+		print "Correct args: <path> <output> <heat> <method> <scale_method>"
 		return -1
 
 	im = open_rgb(args[0])
 	method = args[3]
+	scale_method = args[4]
 	the_hist = calc_hist(im, method)
+	the_hist = map(lambda a: scale(a, scale_method), the_hist)
 	m = float(max(the_hist))
 
 	hist = Image.new("RGB", (len(the_hist)*2, 100))
@@ -194,14 +197,19 @@ def f_hist(args):
 
 	return 0
 
-def f_histbs(args):
-	if len(args) != 4:
-		print "Correct args: <path> <output> <heat> <method>"
+def f_histbs(args, rad = 1, scale_method = 'id'):
+	if len(args) != 6:
+		print "Correct args: <path> <output> <heat> <method> <radius> <scale_method>"
 		return -1
 
 	im = open_rgb(args[0])
 	method = args[3]
-	the_hist = calc_histbs(im, method)
+	rad = int(args[4])
+	the_hist = calc_histbs(im, method, rad)
+	scale_method = args[5]
+
+	the_hist = map(lambda a: scale(a, scale_method), the_hist)
+
 	m = float(max(the_hist))
 
 	hist = Image.new("RGB", (len(the_hist)*2, 100))
@@ -345,20 +353,29 @@ def f_hist2d(args):
 
 	out.save(args[1], 'PNG')
 
-def f_hist2dbs(args, bs = 1):
-	if len(args) != 3 and len(args) != 4:
-		print "Correct args: <path> <output> <method> <radius>"
+def log10(a):
+	if a == 0: return a
+	return math.log(a, 10)
+
+def f_hist2dbs(args, bs = 1, scale_method = 'id'):
+	if len(args) != 3 and len(args) != 5:
+		print "Correct args: <path> <output> <method> <radius> <scale_method>"
 		return -1
 
-	if len(args) == 4:
+	if len(args) == 5:
 		bs = int(args[3])
+		scale_method = args[4]
 
 	im = open_rgb(args[0])
 	(w,h) = im.size
 	out = Image.new("RGB", (w,h))
 	method = args[2]
+	
 
 	hist = calc_histbs(im, method, bs)
+
+	hist = map(lambda a: scale(a, scale_method), hist)
+
 	mx = float(max(hist))
 	print mx
 	l_max = get_l_max(method)
@@ -567,6 +584,36 @@ def median(xs):
 
 	return int(xs[ln/2])
 
+def f_heatmap(args):
+	if len(args) != 3:
+		print "Correct usage: <path> <output> <invert>"
+		return -1
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+			l = int((r+g+b)/3)
+
+			p = l/255.0
+
+			if args[2] == 'yes':
+				p = 1.0-p
+
+			clr = to_clr(p)
+
+			out.putpixel((x,y), clr)
+
+			x += 1
+		y += 1	
+
+	out.save(args[1], 'PNG')
+
 def f_fmed(args, rad = 1):
 	if len(args) != 2 and len(args) != 3:
 		print "Correct usage: <path> <output> [<radius>]"
@@ -629,9 +676,20 @@ def main(func, args):
 		"trshldl" : f_trshldl,
 		"remavg" : f_remavg,
 		"fmed" : f_fmed,
+		"heatmap" : f_heatmap,
 	}
 
 	return (funcs[func])(args)
+
+def scale(p, scale_method):
+	if scale_method == 'log10':
+		return math.log(p+1, 10)
+	elif scale_method == 'sqrt':
+		return math.sqrt(p)
+	elif scale_method == 'id':
+		return p
+
+	raise Exception('Illegal scale_method')
 
 def usage():
 	print "Correct usage: imgimg <function> <args>"
