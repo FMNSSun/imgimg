@@ -22,18 +22,181 @@ def to_clr_m(f):
 
 	return (int(R),int(G),int(B))
 
-def to_clr(f):
+def get_colors_for_scheme(scheme):
+	if scheme == "default" or scheme == "heatmap":
+		return [(0,0,128),(0,255,255),(0,255,0),(255, 255,0),(255,0,0)]
+	elif scheme == "inc":
+		return [(0,0,0),(128,0,0),(255,255,0),(255,255,255)]
+	elif scheme == "metal":
+		return [(0,0,0),(128,0,128),(255,0,0),(255,255,0),(255,255,255)]
+	elif scheme == "gyr":
+		return [(0, 128, 0), (255, 255, 0), (255, 0, 0)]
+	elif scheme == "drw":
+		return [(128, 0, 0), (255, 0, 0), (255, 255, 255)]
+	elif scheme == "bgw":
+		return [(0, 0, 0), (0, 255, 0), (255, 255, 255)]
+	elif scheme == "bbg":
+		return [(0, 0, 0), (0, 64, 0), (0, 255, 0)]
+	elif scheme == "bbbr":
+		return [(0, 0, 0), (32, 0, 0), (64, 0, 0), (255, 0, 0)]
+	elif scheme == "bmetal":
+		return [(0,0,0),(32, 0, 32), (128,0,128),(255,0,0),(255,255,0),(255,255,255)]
+	elif scheme == "visible":
+		return [(255, 0, 255), (0, 0, 255), (0, 255, 0), (255, 255, 0), (255, 0, 0)]
+	elif scheme == "bheatmap":
+		return [(0,0,0),(0,0,128),(0,255,255),(0,255,0),(255, 255,0),(255,0,0)]
+	elif scheme == "dgr":
+		return [(0, 64, 0), (0, 255, 0), (255, 0, 0)]
+	elif scheme == "bgr":
+		return [(0, 0, 0), (0, 255, 0), (255, 0, 0)]
+	elif scheme == "bwr":
+		return [(0, 0, 0), (255, 255, 255), (255, 0, 0)]
+	elif scheme == "bwb":
+		return [(0,0,0), (255, 255, 255), (0, 0, 0)]
+	elif scheme == "bpwpb":
+		return [(0,0,0),(255,0,255),(255,255,255),(255,0,255),(0,0,0)]
+	elif scheme == "gyryg":
+		return [(0, 255, 0), (255, 255, 0), (255, 0, 0), (255, 255, 0), (0, 255, 0)]
+	elif scheme == "bwrwb":
+		return [(0, 0, 0), (255, 255, 255), (255, 0, 0), (255, 255, 255), (0,0,0)]
+	elif scheme == "bbwbb":
+		return [(0, 0, 0), (64, 64, 64), (255, 255, 255), (64, 64, 64), (0,0,0)]
+	elif scheme == "pryrp":
+		return [(128, 0, 128), (255, 0, 0), (255, 255, 0), (255, 0, 0), (128, 0, 128)]
+	elif scheme == "x":
+		return [(0,0,0),(0,0,255),(0,255,255),(0,255,0),(255,255,0),(128, 64, 64),(255,0,0),(255, 128, 128),
+              (255, 0, 255),(255, 128, 255),(255, 255, 255)]
+	elif scheme == "bgrw":
+		return [(0,0,0),(0,0,255),(0,255,0),(255,0,0),(255,255,255)]
+	elif scheme == "bgryw":
+		return [(0,0,0),(0,0,255),(0,255,0),(255, 0, 0), (255, 255, 0), (255, 255, 255)]
+	elif scheme == "bpw":
+		return [(0,0,0), (255, 0, 255), (255, 255, 255)]
+	elif scheme == "bbpw":
+		return [(0,0,0), (28, 0, 28), (255, 0, 255), (255, 255, 255)]
+	elif scheme == "bbbpw":
+		return [(0,0,0), (28, 0, 28), (56, 0, 56), (255, 0, 255), (255, 255, 255)]
+	elif scheme == "bcw":
+		return [(0, 0, 255), (0, 128, 128), (0, 255, 255), (128, 128, 128), (255, 255, 255)]
+	elif scheme == "bc":
+		return [(0, 0, 64), (0,0,128), (0,0,255), (0, 255, 255)]
+	elif scheme == "pypyp":
+		return [(255, 0, 255),(255, 255,0),(255,0,255),(255, 255,0), (255, 0, 255)]
+	elif scheme == "pypy":
+		return [(255, 0, 255), (255, 255,0),(255,0,255),(255,255,0)]
+	elif scheme == "pypypw":
+		return [(255, 0, 255),(255, 255,0),(255,0,255),(255, 255,0), (255, 0, 255), (255,255,255)]
+	elif scheme == "pypyw":
+		return [(255, 0, 255), (255, 255,0),(255,0,255),(255,255,0), (255, 255, 255)]
+	elif scheme == "bpypyw":
+		return [(0,0,0),(255, 0, 255), (255, 255,0),(255,0,255),(255,255,0),(255,255,255)]
+	elif scheme == "prypry":
+		return [(128, 0, 128), (255, 0, 0), (255, 255, 0),(128, 0, 128), (255, 0, 0), (255, 255, 0)]
+	elif scheme == "neat":
+		return [(102, 102, 51), (204, 204, 153), (255, 255, 255), (153, 0, 51)]
+	elif scheme == "bbcgyr":
+		return [(0,0,0),(0,0,255),(0,255,255),(0,255,0),(255,255,0),(255,0,0)]
+	elif scheme == "brrw":
+		return [(0,0,0),(128,0,0),(255,0,0),(255,255,255)]
+
+	return []
+
+def to_clr(f, scheme = "default"):
+	clrs = get_colors_for_scheme(scheme)
+
+	if len(clrs) == 4:
+		return to_clr_4(f, clrs)
+	elif len(clrs) == 5:
+		return to_clr_5(f, clrs)
+	elif len(clrs) == 3:
+		return to_clr_3(f, clrs)
+	elif len(clrs) == 6:
+		return to_clr_6(f, clrs)
+	elif len(clrs) == 11:
+		return to_clr_11(f, clrs)
+
+	raise Exception("Unknown color scheme.")
+
+def to_clr_11(f, clrs):
+	if f >= 0.00 and f <= 0.10:
+		return interpolate_clr(f/0.10, clrs[0], clrs[1])
+	elif f >= 0.10 and f <= 0.20:
+		f -= 0.10
+		return interpolate_clr(f/0.10, clrs[1], clrs[2])
+	elif f >= 0.20 and f <= 0.30:
+		f -= 0.20
+		return interpolate_clr(f/0.10, clrs[2], clrs[3])
+	elif f >= 0.30 and f <= 0.40:
+		f -= 0.30
+		return interpolate_clr(f/0.10, clrs[3], clrs[4])
+	elif f >= 0.40 and f <= 0.50:
+		f -= 0.40
+		return interpolate_clr(f/0.10, clrs[4], clrs[5])
+	elif f >= 0.50 and f <= 0.60:
+		f -= 0.50
+		return interpolate_clr(f/0.10, clrs[5], clrs[6])
+	elif f >= 0.60 and f <= 0.70:
+		f -= 0.60
+		return interpolate_clr(f/0.10, clrs[6], clrs[7])
+	elif f >= 0.70 and f <= 0.80:
+		f -= 0.70
+		return interpolate_clr(f/0.10, clrs[7], clrs[8])
+	elif f >= 0.80 and f <= 0.90:
+		f -= 0.80
+		return interpolate_clr(f/0.10, clrs[8], clrs[9])
+	else:
+		f -= 0.90
+		return interpolate_clr(f/0.10, clrs[9], clrs[10])
+
+def to_clr_6(f, clrs):
+	if f >= 0.00 and f <= 0.20:
+		return interpolate_clr(f/0.20, clrs[0], clrs[1])
+	elif f >= 0.20 and f <= 0.40:
+		f -= 0.20
+		return interpolate_clr(f/0.20, clrs[1], clrs[2])
+	elif f >= 0.40 and f <= 0.60:
+		f -= 0.40
+		return interpolate_clr(f/0.20, clrs[2], clrs[3])
+	elif f >= 0.60 and f <= 0.80:
+		f -= 0.60
+		return interpolate_clr(f/0.20, clrs[3], clrs[4])
+	else:
+		f -= 0.80
+		return interpolate_clr(f/0.20, clrs[4], clrs[5])
+
+def to_clr_5(f, clrs):
 	if f >= 0.00 and f <= 0.25:
-		return interpolate_clr(f/0.25, (0, 0, 128), (0, 255, 255))
+		return interpolate_clr(f/0.25, clrs[0], clrs[1])
 	elif f >= 0.25 and f <= 0.5:
 		f -= 0.25
-		return interpolate_clr(f/0.25, (0, 255, 255), (0, 255, 0))
+		return interpolate_clr(f/0.25, clrs[1], clrs[2])
 	elif f >= 0.5 and f <= 0.75:
 		f -= 0.5
-		return interpolate_clr(f/0.25, (0, 255, 0), (255, 255, 0))
+		return interpolate_clr(f/0.25, clrs[2], clrs[3])
 	else:
 		f -= 0.75
-		return interpolate_clr(f/0.25, (255, 255, 0), (255, 0, 0))
+		return interpolate_clr(f/0.25, clrs[3], clrs[4])
+
+	return (0,0,0)
+
+def to_clr_4(f, clrs):
+	if f >= 0.00 and f <= 0.33:
+		return interpolate_clr(f/0.33, clrs[0], clrs[1])
+	elif f >= 0.33 and f <= 0.66:
+		f -= 0.33
+		return interpolate_clr(f/0.33, clrs[1], clrs[2])
+	else:
+		f -= 0.66
+		return interpolate_clr(f/0.33, clrs[2], clrs[3])
+
+	return (0,0,0)
+
+def to_clr_3(f, clrs):
+	if f >= 0.00 and f <= 0.5:
+		return interpolate_clr(f/0.5, clrs[0], clrs[1])
+	else:
+		f -= 0.5
+		return interpolate_clr(f/0.5, clrs[1], clrs[2])
 
 	return (0,0,0)
 
@@ -594,9 +757,14 @@ def median(xs):
 	return int(xs[ln/2])
 
 def f_heatmap(args):
-	if len(args) != 4:
-		print "Correct usage: <path> <output> <invert> <rescale>"
+	if len(args) != 4 and len(args) != 5:
+		print "Correct usage: <path> <output> <invert> <rescale> [<scheme>]"
 		return -1
+
+	if len(args) == 5:
+		scheme = args[4]
+	else:
+		scheme = "default"
 
 	if args[3] == 'yes':
 		rescale = True
@@ -646,7 +814,7 @@ def f_heatmap(args):
 		
 			p = (l-mi)/float(mx-mi)
 
-			clr = to_clr(p)
+			clr = to_clr(p, scheme)
 
 			out.putpixel((x,y), clr)
 
