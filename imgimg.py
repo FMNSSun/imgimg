@@ -1,6 +1,7 @@
 from PIL import Image, ImageDraw
 import sys
 import math
+import PIL
 
 def interpolate_clr(f, b, a):
 	R = a[0]*f + b[0]*(1-f)
@@ -331,6 +332,175 @@ def calc_hists(im):
 def f_version(args):
 	print "0.0.0.0.0"
 	return 0
+
+def f_2dvizbs(args):
+	if len(args) != 6:
+		print "Correct usage: <path> <output> <xy> <scale_method> <scheme> <radius>"
+		return -1
+
+	path = args[0]
+	outpath = args[1]
+	xy = args[2]
+	scale_method = args[3]
+	scheme = args[4]
+	rad = int(args[5])
+
+	ofs = 32
+	image = Image.open(path).convert('RGB')
+	(w,h) = image.size
+	out = Image.new('RGB',(256+ofs,256+ofs))
+	drw = ImageDraw.Draw(out)
+
+	if xy == 'rg':
+		drw.line([(ofs-1, ofs-1), (ofs-1, 256+ofs)], fill=(0, 255, 0), width=1)
+		drw.line([(ofs-1, ofs-1), (256+ofs-1, ofs-1)], fill=(255, 0, 0), width=1)
+	elif xy == 'bg':
+		drw.line([(ofs-1, ofs-1), (ofs-1, 256+ofs)], fill=(0, 255, 0), width=1)
+		drw.line([(ofs-1, ofs-1), (256+ofs-1, ofs-1)], fill=(0, 0, 255), width=1)
+
+	drw.text([(ofs-16, ofs-16)], "(0,0)")
+	drw.text([(256+ofs-64), (ofs-16)], "(255, 0) ->")
+	matrix = []
+	i = 0
+	while i < 256:
+		row = [0]*256
+		matrix.append(row)
+		i += 1
+
+	maxv = 0
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = image.getpixel((x,y))
+
+			ds = 0
+			N = 0
+			dy = -rad
+			while dy <= rad:
+				dx = -rad
+				while dx <= rad:
+					if dx == 0 and dy == 0: dx += 1; continue
+					if dx +x < 0 or dx +x >= w: dx += 1; continue
+					if dy +y < 0 or dy +y >= h: dx += 1; continue
+					N += 1
+
+					(r_,g_,b_) = image.getpixel((dx+x,dy+y))
+
+					if xy == 'rg':
+							ds += abs(b - b_)
+					elif xy == 'bg':
+							ds += abs(r - r_)
+
+					dx += 1
+				dy += 1
+
+			if xy == 'rg':
+				matrix[g][r] += ds
+				maxv = max(maxv,matrix[g][r])
+			elif xy == 'bg':
+				matrix[g][b] += ds
+				maxv = max(maxv,matrix[g][b])
+			x += 1
+		y += 1
+
+	print maxv
+
+	y = 0
+	while y < 256:
+		x = 0
+		while x < 256:
+			f = (scale(matrix[y][x], scale_method)/scale(maxv, scale_method))
+			clr = to_clr(f, scheme)
+			if xy == 'rg':
+				out.putpixel((x+ofs,y+ofs), clr)
+			elif xy == 'bg':
+				out.putpixel((x+ofs,y+ofs), clr)
+			x += 1
+		y += 1
+
+	(ws, hs) = out.size
+	out = out.resize((ws*3, hs*3), resample=PIL.Image.NEAREST)
+	out.save(outpath, 'PNG')
+
+	return out
+
+def f_2dviz(args):
+	if len(args) != 6:
+		print "Correct usage: <path> <output> <xy> <scale_method> <scheme> <inc1>"
+		return -1
+
+	path = args[0]
+	outpath = args[1]
+	xy = args[2]
+	scale_method = args[3]
+	scheme = args[4]
+
+	if args[5] == 'yes':
+		inc1 = True
+	else:
+		inc1 = False
+
+	ofs = 32
+	image = Image.open(path).convert('RGB')
+	(w,h) = image.size
+	out = Image.new('RGB',(256+ofs,256+ofs))
+	drw = ImageDraw.Draw(out)
+
+	if xy == 'rg':
+		drw.line([(ofs-1, ofs-1), (ofs-1, 256+ofs)], fill=(0, 255, 0), width=1)
+		drw.line([(ofs-1, ofs-1), (256+ofs-1, ofs-1)], fill=(255, 0, 0), width=1)
+	elif xy == 'bg':
+		drw.line([(ofs-1, ofs-1), (ofs-1, 256+ofs)], fill=(0, 255, 0), width=1)
+		drw.line([(ofs-1, ofs-1), (256+ofs-1, ofs-1)], fill=(0, 0, 255), width=1)
+
+	drw.text([(ofs-16, ofs-16)], "(0,0)")
+	drw.text([(256+ofs-64), (ofs-16)], "(255, 0) ->")
+	matrix = []
+	i = 0
+	while i < 256:
+		row = [0]*256
+		matrix.append(row)
+		i += 1
+
+	maxv = 0
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = image.getpixel((x,y))
+
+			if xy == 'rg':
+				if inc1: b = 1
+				matrix[g][r] += b
+				maxv = max(maxv,matrix[g][r])
+			elif xy == 'bg':
+				if inc1: r = 1
+				matrix[g][b] += r
+				maxv = max(maxv,matrix[g][b])
+			x += 1
+		y += 1
+
+	print maxv
+
+	y = 0
+	while y < 256:
+		x = 0
+		while x < 256:
+			f = (scale(matrix[y][x], scale_method)/scale(maxv, scale_method))
+			clr = to_clr(f, scheme)
+			if xy == 'rg':
+				out.putpixel((x+ofs,y+ofs), clr)
+			elif xy == 'bg':
+				out.putpixel((x+ofs,y+ofs), clr)
+			x += 1
+		y += 1
+
+	(ws, hs) = out.size
+	out = out.resize((ws*3, hs*3), resample=PIL.Image.NEAREST)
+	out.save(outpath, 'PNG')
+
+	return out
 
 def f_hist(args):
 	if len(args) != 5:
@@ -886,6 +1056,8 @@ def main(func, args):
 		"remavg" : f_remavg,
 		"fmed" : f_fmed,
 		"heatmap" : f_heatmap,
+		"2dviz" : f_2dviz,
+		"2dvizbs" : f_2dvizbs,
 	}
 
 	return (funcs[func])(args)
