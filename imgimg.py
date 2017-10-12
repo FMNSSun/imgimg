@@ -204,6 +204,9 @@ def to_clr_3(f, clrs):
 def open_rgb(path):
 	return Image.open(path).convert('RGB')
 
+def open_rgba(path):
+	return Image.open(path).convert('RGBA')
+
 def calc_avg(im):
 	(w,h) = im.size
 
@@ -589,6 +592,8 @@ def f_dhist(args):
 def get_l_max(method):
 	if method == "d":
 		return 441
+	elif method == "dd":
+		return 255+128
 	return 255
 
 def get_l(rgb, method):
@@ -653,6 +658,8 @@ def get_l(rgb, method):
 		l = int(abs(g))
 	elif method == "bd":
 		l = int(abs(b))
+	elif method == "dd":
+		return abs(r-g)+abs(g-b)+abs(g-b)
 
 	return l
 
@@ -677,7 +684,7 @@ def f_hist2d(args):
 		while x < w:
 			(r,g,b) = im.getpixel((x,y))
 			l = get_l((r,g,b), method)
-			l = scale(l, scale_method)			
+			#l = scale(l, scale_method)			
 
 			p = hist[l]/mx
 			p = int(p * 255.0)
@@ -764,9 +771,120 @@ def f_hist2dbs(args, bs = 1, scale_method = 'id'):
 	print lsums
 	out.save(args[1], 'PNG')
 
-def f_trshldl(args):
+def f_avgclr(args):
+	if len(args) != 1:
+		print "Correct args: <path>"
+		return -1
+
+	im = open_rgba(args[0])
+	(w,h) = im.size
+
+	r = 0
+	g = 0
+	b = 0
+	M = 0
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r_,g_,b_, a_) = im.getpixel((x,y))
+
+			if a_ != 255:
+				 x += 1
+				 continue
+
+			M += 1
+
+			r += r_
+			g += g_
+			b += b_
+			x += 1
+		y += 1
+
+	r /= M
+	g /= M
+	b /= M
+
+	print hex(r),hex(g),hex(b), hex(r << 16 | g << 8 | b)
+
+def f_slctr(args):
+	if len(args) != 7:
+		print "Correct args: <path> <mask> <output> <rad-y> <rad+y> <rad-x> <rad+x>"
+		return -1
+
+	path = args[0]
+	mask = args[1]
+	outpath = args[2]
+	rad_my = int(args[3])
+	rad_py = int(args[4])
+	rad_mx = int(args[5])
+	rad_px = int(args[6])
+
+	print -rad_my, rad_py, -rad_mx,
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	maskim = open_rgb(args[1])
+
+	out = Image.new('RGBA', (w,h))
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = maskim.getpixel((x,y))
+			if r == 255 and g == 255 and b == 255: x += 1; continue
+
+			ncount = 0
+
+			dy = -1
+			while dy <= 1:
+				dx = -1
+				while dx <= 1:
+					if dx == 0 and dy == 0: dx += 1; continue
+					if x+dx < 0 or x+dx >= w: dx += 1; continue
+					if y+dy < 0 or y+dy >= h: dy += 1; continue
+
+					(r,g,b) = maskim.getpixel((x+dx,y+dy))
+
+					if r != 255 and g != 255 and b != 255:
+						ncount += 1
+
+					dx += 1
+				dy += 1
+
+			if ncount <= 4:
+				dy = -rad_my
+				while dy <= rad_py:
+					dx = -rad_mx
+					while dx <= rad_py:
+						if dx == 0 and dy == 0: dx += 1; continue
+						if x+dx < 0 or x+dx >= w: dx += 1; continue
+						if y+dy < 0 or y+dy >= h: dx += 1; continue
+
+						(r,g,b) = maskim.getpixel((x+dx,y+dy))
+
+						if r != 255 and g != 255 and b != 255: 
+							dx += 1; 
+							continue
+
+						(r,g,b) = im.getpixel((x+dx,y+dy))
+
+						out.putpixel((x+dx,y+dy), (r,g,b, 255))
+
+						dx += 1
+					dy += 1
+
+			x += 1
+		y += 1
+
+	out.save(outpath, 'PNG')
+
+def f_trshldu(args):
 	if len(args) != 4:
 		print "Correct args: <path> <output> <method> <threshold>"
+		return -1
 
 	threshold = float(args[3])
 	method = args[2]
@@ -784,9 +902,223 @@ def f_trshldl(args):
 			l = 0
 
 			l = get_l((r,g,b), method)
+			m = get_l_max(method)
+			c = int((l/float(m))*255)
+
+			if l > threshold:
+				out.putpixel((x,y),(255-c,255-c,255-c))
+			else:
+				out.putpixel((x,y),(255,255,255))
+
+			x += 1
+		y += 1
+
+	out.save(args[1], 'PNG')
+
+def f_sscan(args):
+	if len(args) != 5:
+		print "Correct args: <path> <output> <method> <threshold> <minlen>"
+		return -1
+
+	threshold = float(args[3])
+	method = args[2]
+	minlen = int(args[4])
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+
+	out = Image.new('RGB', (w,h))
+
+	# hscan
+
+	y = 0
+	while y < h:
+		x = 0
+
+		ref_l = get_l(im.getpixel((0,y)), method)
+		l = ref_l
+		ln = 0
+		start_x = x
+
+		while x < w+1: 
+			if x >= w:
+				l = threshold*2
+			else:
+				l = get_l(im.getpixel((x,y)), method)
+
+			if abs(ref_l - l) < threshold:
+				#ref_l = (l + ref_l) / 2
+				ln += 1
+			else:
+				if ln >= minlen:
+					end_x = x-1
+					mid_x = int((start_x+end_x)/2)
+					
+					ln_u = 0
+					ln_d = 0
+					_ref_l = ref_l
+
+					# up scan
+
+					y2 = y
+					while y2 >= 0:
+						l2 = get_l(im.getpixel((mid_x,y2)), method)
+
+						if abs(ref_l - l2) < threshold:
+							ref_l = (l2 + ref_l) / 2
+							ln_u += 1
+						else:
+							break
+
+						y2 -= 1
+
+					# down scan
+
+					ref_l = _ref_l
+					y2 = y
+
+					while y2 < h:
+						l2 = get_l(im.getpixel((mid_x,y2)), method)
+
+						if abs(ref_l - l2) < threshold:
+							#ref_l = (l2 + ref_l) / 2
+							ln_d += 1
+						else:
+							break
+
+						y2 += 1
+
+					ln_y = ln_u + ln_d
+
+					print ln, ln_y
+
+					ratio = float(min(ln, ln_y))/float(max(ln, ln_y))
+
+					print ratio
+
+					if ratio > 0.9:
+						out.putpixel((mid_x, y), (255,0,255))
+					#else:
+					#	out.putpixel((mid_x, y), (0, 255, 0))
+
+
+				ref_l = l				
+
+				ln = 0
+				start_x = x
+
+			x += 1
+		y += 1
+
+	# vscan
+
+	x = 0
+	while x < w:
+		y = 0
+
+		ref_l = get_l(im.getpixel((x,0)), method)
+		l = ref_l
+		ln = 0
+		start_y = y
+
+		while y < h+1: 
+			if y >= h:
+				l = threshold*2
+			else:
+				l = get_l(im.getpixel((x,y)), method)
+
+			if abs(ref_l - l) < threshold:
+				ref_l = (l + ref_l) / 2
+				ln += 1
+			else:
+				if ln >= minlen:
+					end_y = y-1
+					mid_y = int((start_y+end_y)/2)
+					
+					ln_l = 0
+					ln_r = 0
+					_ref_l = ref_l
+
+					# left scan
+
+					x2 = x
+					while x2 >= 0:
+						l2 = get_l(im.getpixel((x2,mid_y)), method)
+
+						if abs(ref_l - l2) < threshold:
+							ref_l = (l2 + ref_l) / 2
+							ln_l += 1
+						else:
+							break
+
+						x2 -= 1
+
+					# right scan
+
+					ref_l = _ref_l
+					x2 = x
+
+					while x2 < w:
+						l2 = get_l(im.getpixel((x2,mid_y)), method)
+
+						if abs(ref_l - l2) < threshold:
+							ref_l = (l2 + ref_l) / 2
+							ln_r += 1
+						else:
+							break
+
+						x2 += 1
+
+					ln_x = ln_l + ln_r
+
+					print ln, ln_x
+
+					ratio = float(min(ln, ln_x))/float(max(ln, ln_x))
+
+					print ratio
+
+					if ratio > 0.9:
+						out.putpixel((x, mid_y), (255,255,0))
+					#else:
+					#	out.putpixel((x, mid_y), (0, 255, 0))
+
+
+				ref_l = l				
+
+				ln = 0
+				start_y = y
+
+			y += 1
+		x += 1
+
+	out.save(args[1], 'PNG')
+
+def f_trshldl(args):
+	if len(args) != 4:
+		print "Correct args: <path> <output> <method> <threshold>"
+		return -1
+
+	threshold = float(args[3])
+	method = args[2]
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+
+			l = 0
+
+			l = get_l((r,g,b), method)
+			m = get_l_max(method)
+			c = int((l/float(m))*255)
 
 			if l < threshold:
-				out.putpixel((x,y),(l,l,l))
+				out.putpixel((x,y),(c,c,c))
 			else:
 				out.putpixel((x,y),(255,255,255))
 
@@ -922,7 +1254,7 @@ def median(xs):
 		ai = ln/2
 		bi = ai-1
 
-		return int((ai+bi)/2)
+		return int((xs[ai]+xs[bi])/2)
 
 	return int(xs[ln/2])
 
@@ -993,6 +1325,56 @@ def f_heatmap(args):
 
 	out.save(args[1], 'PNG')
 
+def f_favg(args, rad = 1):
+	if len(args) != 2 and len(args) != 3:
+		print "Correct usage: <path> <output> [<radius>]"
+		return -1
+
+	if len(args) == 3:
+		rad = int(args[2])
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			N = 0
+			rs = 0
+			gs = 0
+			bs = 0
+			dy = -rad
+			while dy <= rad:
+				dx = -rad
+				while dx <= rad:
+					if x+dx < 0 or x+dx >= w: dx+=1; continue
+					if y+dy < 0 or y+dy >= h: dx+=1; continue
+
+					N += 1
+	
+					(r,g,b) = im.getpixel((x+dx,y+dy))
+					rs += r
+					gs += g
+					bs += b
+							
+
+					dx += 1
+				dy += 1
+
+			rs /= N
+			gs /= N
+			bs /= N
+
+			out.putpixel((x,y),(rs, gs, bs))
+
+			x += 1
+		y += 1
+
+	out.save(args[1], 'PNG')
+	return out
+
 def f_fmed(args, rad = 1):
 	if len(args) != 2 and len(args) != 3:
 		print "Correct usage: <path> <output> [<radius>]"
@@ -1053,11 +1435,16 @@ def main(func, args):
 		"hist2d" : f_hist2d,
 		"hst2dbs" : f_hist2dbs,
 		"trshldl" : f_trshldl,
+		"trshldu" : f_trshldu,
 		"remavg" : f_remavg,
 		"fmed" : f_fmed,
+		"favg" : f_favg,
 		"heatmap" : f_heatmap,
 		"2dviz" : f_2dviz,
 		"2dvizbs" : f_2dvizbs,
+		"slctr" : f_slctr,
+		"avgclr": f_avgclr,
+		"sscan" : f_sscan,
 	}
 
 	return (funcs[func])(args)
