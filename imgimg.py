@@ -1093,6 +1093,102 @@ def f_sscan(args):
 
 	out.save(args[1], 'PNG')
 
+def f_bndrect(args):
+	if len(args) != 2:
+		print "Correct args: <path> <output>"
+
+	im = open_rgb(args[0])
+	(w,h) = im.size
+	out = Image.new("RGB", (w,h))
+	drw = ImageDraw.Draw(out)
+
+	rects = []
+
+	visited = []
+	y = 0
+	while y < h:
+		visited.append([False]*w)
+		x = 0
+		while x < w:
+			out.putpixel((x,y),im.getpixel((x,y)))
+			x += 1
+		y += 1
+
+	y = 0
+	while y < h:
+		x = 0
+		while x < w:
+			(r,g,b) = im.getpixel((x,y))
+
+			if r == 255 and g == 255 and b == 255:
+				x += 1
+				continue
+
+			if visited[y][x]: # already visited this pixel
+				x += 1
+				continue
+
+			visited[y][x] = True # mark as visited
+
+			pxs = [(x,y)]
+
+			min_x = w
+			max_x = -1
+			min_y = h
+			max_y = -1
+
+			while len(pxs) > 0:
+				(px, py) = pxs.pop()
+
+				dy = -1
+				while dy <= 1:
+					dx = -1
+					while dx <= 1:
+						if dx == 0 and dy == 0:
+							dx += 1
+							continue
+
+						if px+dx < 0 or px+dx > w:
+							dx += 1
+							continue
+
+						if py+dy < 0 or py+dy > h:
+							dx += 1
+							continue
+
+						(r,g,b) = im.getpixel((px+dx,py+dy))
+
+						if r == 255 and g == 255 and b == 255:
+							dx += 1
+							continue
+
+						if not visited[py+dy][px+dx]:
+							min_x = min(min_x, px+dx)
+							min_y = min(min_y, py+dy)
+							max_x = max(max_x, px+dx)
+							max_y = max(max_y, py+dy)
+
+							pxs.append((px+dx, py+dy))
+
+							visited[py+dy][px+dx] = True
+
+						dx += 1
+					dy += 1
+
+			rects.append([(min_x, min_y), (max_x, max_y)])
+
+			drw.rectangle([min_x, min_y, max_x, max_y], outline = (255,0,255))
+
+			x += 1
+		y += 1
+
+	out.save(args[1], 'PNG')
+
+	print rects
+
+	return out
+	
+
 def f_trshldl(args):
 	if len(args) != 4:
 		print "Correct args: <path> <output> <method> <threshold>"
@@ -1445,6 +1541,7 @@ def main(func, args):
 		"slctr" : f_slctr,
 		"avgclr": f_avgclr,
 		"sscan" : f_sscan,
+		"bndrect" : f_bndrect,
 	}
 
 	return (funcs[func])(args)
